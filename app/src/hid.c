@@ -20,6 +20,7 @@ static struct zmk_hid_consumer_report consumer_report = {.report_id = 2, .body =
 static struct zmk_hid_mouse_report mouse_report = {
     .report_id = 4, .body = {.buttons = 0, .x = 0, .y = 0, .scroll_x = 0, .scroll_y = 0}};
 #endif
+static struct zmk_hid_plover_report plover_report = {.report_id = PLOVER_HID_REPORT_ID, .body = {.buttons = {0}}};
 
 // Keep track of how often a modifier was pressed.
 // Only release the modifier if the count is 0.
@@ -245,6 +246,8 @@ int zmk_hid_press(uint32_t usage) {
         return zmk_hid_keyboard_press(ZMK_HID_USAGE_ID(usage));
     case HID_USAGE_CONSUMER:
         return zmk_hid_consumer_press(ZMK_HID_USAGE_ID(usage));
+    case HID_USAGE_VENDOR_PLOVER & 0xFF:
+        return zmk_hid_plover_press(ZMK_HID_USAGE_ID(usage));
     }
     return -EINVAL;
 }
@@ -255,6 +258,8 @@ int zmk_hid_release(uint32_t usage) {
         return zmk_hid_keyboard_release(ZMK_HID_USAGE_ID(usage));
     case HID_USAGE_CONSUMER:
         return zmk_hid_consumer_release(ZMK_HID_USAGE_ID(usage));
+    case HID_USAGE_VENDOR_PLOVER & 0xFF:
+        return zmk_hid_plover_release(ZMK_HID_USAGE_ID(usage));
     }
     return -EINVAL;
 }
@@ -349,6 +354,17 @@ void zmk_hid_mouse_scroll_update(int8_t x, int8_t y) {
 }
 void zmk_hid_mouse_clear() { memset(&mouse_report.body, 0, sizeof(mouse_report.body)); }
 #endif /* IS_ENABLED(CONFIG_ZMK_MOUSE) */
+int zmk_hid_plover_press(zmk_key_t code) {
+    plover_report.body.buttons[code / 8] |= ( 1 << (7 - (code % 8)));
+    return 0;
+};
+
+int zmk_hid_plover_release(zmk_key_t code) {
+    plover_report.body.buttons[code / 8] &= ~( 1 << (7 - (code % 8)));
+    return 0;
+};
+
+void zmk_hid_plover_clear() { memset(&plover_report.body, 0, sizeof(plover_report.body)); }
 
 struct zmk_hid_keyboard_report *zmk_hid_get_keyboard_report() {
     return &keyboard_report;
@@ -363,3 +379,6 @@ struct zmk_hid_mouse_report *zmk_hid_get_mouse_report() {
     return &mouse_report;
 }
 #endif
+struct zmk_hid_plover_report *zmk_hid_get_plover_report() {
+    return &plover_report;
+}

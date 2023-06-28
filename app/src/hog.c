@@ -62,6 +62,10 @@ static struct hids_report mouse_input = {
     .type = HIDS_INPUT,
 };
 #endif
+static struct hids_report plover_input = {
+    .id = 0x50,
+    .type = HIDS_INPUT,
+};
 
 static bool host_requests_notification = false;
 static uint8_t ctrl_point;
@@ -108,6 +112,13 @@ static ssize_t read_hids_mouse_input_report(struct bt_conn *conn, const struct b
                              sizeof(struct zmk_hid_mouse_report_body));
 }
 #endif
+static ssize_t read_hids_plover_input_report(struct bt_conn *conn,
+                                             const struct bt_gatt_attr *attr, void *buf,
+                                             uint16_t len, uint16_t offset) {
+    struct zmk_hid_plover_report_body *report_body = &zmk_hid_get_plover_report()->body;
+    return bt_gatt_attr_read(conn, attr, buf, len, offset, report_body,
+                             sizeof(struct zmk_hid_plover_report_body));
+}
 
 // static ssize_t write_proto_mode(struct bt_conn *conn,
 //                                 const struct bt_gatt_attr *attr,
@@ -164,6 +175,11 @@ BT_GATT_SERVICE_DEFINE(
                        NULL, &mouse_input),
 #endif
 
+    BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_REPORT, BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
+                           BT_GATT_PERM_READ_ENCRYPT, read_hids_plover_input_report, NULL, NULL),
+    BT_GATT_CCC(input_ccc_changed, BT_GATT_PERM_READ_ENCRYPT | BT_GATT_PERM_WRITE_ENCRYPT),
+    BT_GATT_DESCRIPTOR(BT_UUID_HIDS_REPORT_REF, BT_GATT_PERM_READ_ENCRYPT, read_hids_report_ref,
+                       NULL, &plover_input),
     BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_CTRL_POINT, BT_GATT_CHRC_WRITE_WITHOUT_RESP,
                            BT_GATT_PERM_WRITE, NULL, write_ctrl_point, &ctrl_point));
 
@@ -311,7 +327,7 @@ void send_mouse_report_callback(struct k_work *work) {
 
         bt_conn_unref(conn);
     }
-};
+}
 
 K_WORK_DEFINE(hog_mouse_work, send_mouse_report_callback);
 
@@ -332,7 +348,7 @@ int zmk_hog_send_mouse_report(struct zmk_hid_mouse_report_body *report) {
     k_work_submit_to_queue(&hog_work_q, &hog_mouse_work);
 
     return 0;
-};
+}
 
 int zmk_hog_send_mouse_report_direct(struct zmk_hid_mouse_report_body *report) {
     struct bt_conn *conn = destination_connection();
@@ -357,6 +373,61 @@ int zmk_hog_send_mouse_report_direct(struct zmk_hid_mouse_report_body *report) {
     return 0;
 };
 #endif /* IS_ENABLED(CONFIG_ZMK_MOUSE) */
+
+K_MSGQ_DEFINE(zmk_hog_plover_msgq, sizeof(struct zmk_hid_plover_report_body),
+              CONFIG_ZMK_BLE_PLOVER_HID_REPORT_QUEUE_SIZE, 4);
+
+void send_plover_report_callback(struct k_work *work) {
+    struct zmk_hid_plover_report_body report;
+
+    while (k_msgq_get(&zmk_hog_plover_msgq, &report, K_NO_WAIT) == 0) {
+        struct bt_conn *conn = destination_connection();
+        if (conn == NULL) {
+            return;
+        }
+
+        struct bt_gatt_notify_params notify_params = {
+            // FIXME: Try to understand this offset calculation, because I just brute-forced it
+            // until it worked.
+            // 13 seems to be working, but might be wrong
+            // or 14
+            // (k3d3) since adding mouse stuff took over #13, it seems steno's at #18 now
+            .attr = &hog_svc.attrs[18],
+            .data = &report,
+            .len = sizeof(report),
+        };
+
+        int err = bt_gatt_notify_cb(conn, &notify_params);
+        if (err) {
+            LOG_DBG("Error notifying %d", err);
+        }
+
+        bt_conn_unref(conn);
+    }
+}
+
+K_WORK_DEFINE(hog_plover_work, send_plover_report_callback);
+
+int zmk_hog_send_plover_report(struct zmk_hid_plover_report_body *report) {
+    int err = k_msgq_put(&zmk_hog_plover_msgq, report, K_MSEC(100));
+    if (err) {
+        switch (err) {
+        case -EAGAIN: {
+            LOG_WRN("Plover message queue full, popping first message and queueing again");
+            struct zmk_hid_plover_report_body discarded_report;
+            k_msgq_get(&zmk_hog_plover_msgq, &discarded_report, K_NO_WAIT);
+            return zmk_hog_send_plover_report(report);
+        }
+        default:
+            LOG_WRN("Failed to queue plover report to send (%d)", err);
+            return err;
+        }
+    }
+
+    k_work_submit_to_queue(&hog_work_q, &hog_plover_work);
+
+    return 0;
+};
 
 int zmk_hog_init(const struct device *_arg) {
     static const struct k_work_queue_config queue_config = {.name = "HID Over GATT Send Work"};
