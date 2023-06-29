@@ -435,8 +435,8 @@ endmenu
 menu "KSCAN Settings"
 
 config ZMK_KSCAN_EVENT_QUEUE_SIZE
-	int "Size of the event queue for KSCAN events to buffer events"
-	default 4
+    int "Size of the event queue for KSCAN events to buffer events"
+    default 4
   default 64 if ZMK_PLOVER_HID
 
 #KSCAN Settings

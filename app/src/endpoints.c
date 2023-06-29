@@ -167,8 +167,8 @@ int zmk_endpoints_send_report(uint16_t usage_page) {
         return send_keyboard_report();
     case HID_USAGE_CONSUMER:
         return send_consumer_report();
-    // FIXME: we should not and the usage page here, we should make sure
-    // the whole page gets here
+        // FIXME: we should not and the usage page here, we should make sure
+        // the whole page gets here
 #if IS_ENABLED(CONFIG_ZMK_PLOVER_HID)
     case (HID_USAGE_VENDOR_PLOVER & 0xFF):
         return send_plover_report();
