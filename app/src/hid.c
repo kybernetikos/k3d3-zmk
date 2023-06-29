@@ -367,11 +367,19 @@ int zmk_hid_plover_release(zmk_key_t code) {
 
 void zmk_hid_plover_clear() { memset(&plover_report.body, 0, sizeof(plover_report.body)); }
 
-struct zmk_hid_keyboard_report *zmk_hid_get_keyboard_report() { return &keyboard_report; }
+struct zmk_hid_keyboard_report *zmk_hid_get_keyboard_report() {
+    return &keyboard_report;
+}
 
-struct zmk_hid_consumer_report *zmk_hid_get_consumer_report() { return &consumer_report; }
+struct zmk_hid_consumer_report *zmk_hid_get_consumer_report() {
+    return &consumer_report;
+}
 
 #if IS_ENABLED(CONFIG_ZMK_MOUSE)
-struct zmk_hid_mouse_report *zmk_hid_get_mouse_report() { return &mouse_report; }
+struct zmk_hid_mouse_report *zmk_hid_get_mouse_report() {
+    return &mouse_report;
+}
 #endif
-struct zmk_hid_plover_report *zmk_hid_get_plover_report() { return &plover_report; }
+struct zmk_hid_plover_report *zmk_hid_get_plover_report() {
+    return &plover_report;
+}
